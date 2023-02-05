@@ -16,12 +16,14 @@ typedef Polyhedron::Halfedge_around_facet_const_circulator Halfedge_facet_circul
 typedef std::map<Polyhedron::Facet_const_handle, double> Facet_double_map;
 typedef std::map<Polyhedron::Facet_const_handle, int> Facet_int_map;
 
-/// @brief map all values between 0 and 1
-/// @param facetMap a map of facets and values
+/// @brief map all the values from [min, max] to [0, 1]
+/// @param facetMap non-const reference to the map (it is an in/out parameter)
 void normalizeMap(Facet_double_map &facetMap)
 {
 	double maxValue = facetMap.begin()->second;
 	double minValue = facetMap.begin()->second;
+
+	// look for min and max value in the map
 	for (const auto &elem : facetMap)
 	{
 		if (elem.second > maxValue)
@@ -41,6 +43,10 @@ void normalizeMap(Facet_double_map &facetMap)
 	}
 }
 
+/// @brief Generate in a .off file a colored mesh according to a value map (green to red shades)
+/// @param mesh the input mesh
+/// @param facetMap map of values between 0 and 1 (see "normalize()") for each facet of mesh
+/// @param filePath path to the colored .off file to be generated
 void writeOFFfromValueMap(const Polyhedron& mesh, const Facet_double_map& facetMap, std::string filePath)
 {
 	std::ofstream in_myfile;
@@ -48,9 +54,10 @@ void writeOFFfromValueMap(const Polyhedron& mesh, const Facet_double_map& facetM
 
 	CGAL::set_ascii_mode(in_myfile);
 
-	in_myfile << "COFF" << std::endl
-			  << mesh.size_of_vertices() << ' '
-			  << mesh.size_of_facets() << " 0" << std::endl;
+	in_myfile << "COFF" << std::endl // "COFF" makes the file support color informations
+			  << mesh.size_of_vertices() << ' ' 
+			  << mesh.size_of_facets() << " 0" << std::endl; 
+			  // nb of vertices, faces and edges (the latter is optional, thus 0)
 
 	std::copy(mesh.points_begin(), mesh.points_end(),
 			  std::ostream_iterator<Kernel::Point_3>(in_myfile, "\n"));
@@ -58,9 +65,8 @@ void writeOFFfromValueMap(const Polyhedron& mesh, const Facet_double_map& facetM
 	for (Facet_iterator i = mesh.facets_begin(); i != mesh.facets_end(); ++i)
 	{
 		Halfedge_facet_circulator j = i->facet_begin();
-		// Facets in polyhedral surfaces are at least triangles.
-		CGAL_assertion(CGAL::circulator_size(j) >= 3);
 
+		CGAL_assertion(CGAL::circulator_size(j) >= 3);
 
 		in_myfile << CGAL::circulator_size(j) << ' ';
 		do
@@ -118,6 +124,9 @@ Facet_double_map computeAreaMap(const Polyhedron &mesh)
 		Polyhedron::Vertex_const_handle firstVertex = j->vertex();
 
 		double current_area = 0;
+		// a facet is not necessarily a triangle, so we decompose one facet into multiple triangles,
+		// and sum up all their areas. Only works for convex faces.
+		// (illustration: http://mathbitsnotebook.com/JuniorMath/Polygons/polygons3g.jpg)
 		do
 		{
 			current_area += CGAL::squared_area(firstVertex->point(), j->vertex()->point(), j->opposite()->vertex()->point()); 
